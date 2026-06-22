@@ -1,11 +1,20 @@
 openapi: 3.0.0
 servers:
-  - description: API Marketplace api - mocking example api
-    url: https://virtserver.swaggerhub.com/HMCTS-DTS/api-hmcts-crime-template/1.0.0
+  - description: CP Crime Hearing Results API
+    url: https://api-cp-crime-hearing-results.net/{version}
+    variables:
+      version:
+        default: 1.0.0
+        description: API version; matches the spec info.version
 
 info:
-  title: API Marketplace api - example api
-  description: API Marketplace api - simple example
+  title: CP Crime Hearing Results API
+  description: >-
+    Exposes hearing results for criminal cases on the Common Platform (CP).
+
+    Given a hearing ID, the API returns the results recorded at that hearing —
+    the prosecution case reference, the result for each offence, and the result
+    for each court application, including any sentence handed down.
   version: 1.0.0
   contact:
     email: no-reply@hmcts.com
@@ -13,75 +22,314 @@ info:
     name: MIT
     url: 'https://opensource.org/licenses/MIT'
 
+security:
+  - oAuthJwt: []
+
+tags:
+  - name: hearing-results
+    description: Hearing results — offence and court application results for a hearing
+
 paths:
-  /:
+  /hearing-results/hearings/{hearingId}:
     get:
-      description: Root endpoint
-      operationId: getRoot
+      summary: Get the results for a hearing
+      description: >-
+        Returns the results recorded at a specific hearing. The response
+        includes the prosecution case reference, a result for each offence, and
+        a result for each court application, including any sentence. If the
+        hearing has no recorded results, empty lists are returned. If the
+        hearing does not exist, a not found response is returned.
+      operationId: getHearingResult
       tags:
-        - root
-
-      responses:
-        '200':
-          description: OK
-          content:
-            text/plain:
-              schema:
-                type: string
-                example: Hello
-
-  /example/{example_id}:
-    get:
-      description: Get example for example_id
-      operationId: getExampleByExampleId
-      tags:
-        - examples
+        - hearing-results
       parameters:
         - in: path
-          name: example_id
+          name: hearingId
           required: true
-          description: Unique id for the example - long
+          description: Unique identifier of the hearing
           schema:
-            type: integer
-            format: int64
+            type: string
+            format: uuid
+          example: "f1d2c3b4-a5e6-4f7a-8b9c-0d1e2f3a4b5c"
       responses:
         '200':
-          description:  Examples found
+          description: Hearing results found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ExampleResponse"
+                $ref: "#/components/schemas/HearingResultView"
+              examples:
+                results:
+                  summary: Hearing with an offence result and a court application result
+                  value:
+                    id: "f1d2c3b4-a5e6-4f7a-8b9c-0d1e2f3a4b5c"
+                    pcr:
+                      id: "9c8b7a6d-5e4f-4321-8765-0a1b2c3d4e5f"
+                      reference: "20GD1234567"
+                    offences:
+                      - id: "c4a1b2d3-e5f6-4789-9abc-0d1e2f3a4b5c"
+                        code: "TH68001"
+                        result:
+                          id: "c4a1b2d3-e5f6-4789-9abc-0d1e2f3a4b5c_result"
+                          type: "Convicted"
+                          date: "2026-05-14"
+                          sentence:
+                            id: "c4a1b2d3-e5f6-4789-9abc-0d1e2f3a4b5c_sentence"
+                            type: "Custodial"
+                            custodyStatus: "C"
+                            periodLengths:
+                              - years: 1
+                                months: 6
+                    courtApplicationResults:
+                      - id: "a9b8c7d6-e5f4-4321-9876-0a1b2c3d4e5f"
+                        reference: "APP-2026-001"
+                        result:
+                          id: "a9b8c7d6-e5f4-4321-9876-0a1b2c3d4e5f_result"
+                          type: "Financial"
+                          date: "2026-05-14"
+                          sentence:
+                            id: "a9b8c7d6-e5f4-4321-9876-0a1b2c3d4e5f_sentence"
+                            type: "Financial"
+                            financialAmount: 250.00
+                            periodLengths: []
+                empty:
+                  summary: Hearing exists but has no recorded results
+                  value:
+                    id: "f1d2c3b4-a5e6-4f7a-8b9c-0d1e2f3a4b5c"
+                    offences: []
+                    courtApplicationResults: []
         '400':
-          description: Bad input parameter
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+          $ref: "#/components/responses/BadRequest"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          $ref: "#/components/responses/Forbidden"
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '500':
+          $ref: "#/components/responses/InternalServerError"
 
 components:
+  securitySchemes:
+    oAuthJwt:
+      type: oauth2
+      description: >-
+        OAuth 2.0 protection. Callers must present a valid JWT bearer access
+        token obtained via the client credentials flow.
+      flows:
+        clientCredentials:
+          tokenUrl: https://api-cp-crime-hearing-results.net/oauth2/token
+          scopes:
+            hearing-results.read: Read access to hearing results data
+
+  responses:
+    BadRequest:
+      description: Bad input parameter
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "BAD_REQUEST"
+            message: "The supplied hearingId is not a valid UUID"
+            details:
+              parameter: "hearingId"
+            timestamp: "2026-06-22T11:33:22.794Z"
+            traceId: "b2f1c3d4e5f60718"
+    Unauthorized:
+      description: Authentication is missing or the access token is invalid
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "UNAUTHORIZED"
+            message: "Access token is missing or invalid"
+            timestamp: "2026-06-22T11:33:22.794Z"
+            traceId: "c3a2b4d5e6f70819"
+    Forbidden:
+      description: The access token does not grant the required scope
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "FORBIDDEN"
+            message: "The access token does not grant the required scope hearing-results.read"
+            timestamp: "2026-06-22T11:33:22.794Z"
+            traceId: "d4b3c5e6f708192a"
+    NotFound:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "NOT_FOUND"
+            message: "No hearing found for the supplied hearing ID"
+            details:
+              hearingId: "f1d2c3b4-a5e6-4f7a-8b9c-0d1e2f3a4b5c"
+            timestamp: "2026-06-22T11:33:22.794Z"
+            traceId: "e5c4d6f708192a3b"
+    InternalServerError:
+      description: An unexpected error occurred
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "INTERNAL_SERVER_ERROR"
+            message: "An unexpected error occurred while processing the request"
+            timestamp: "2026-06-22T11:33:22.794Z"
+            traceId: "f6d5e708192a3b4c"
+
   schemas:
-    ExampleResponse:
-      description: Details of examples associated with the example id
+    HearingResultView:
+      description: Results recorded at a hearing
       type: object
       properties:
-        exampleId:
-          description: Id of the example - long
-          type: integer
-          format: int64
-        exampleText:
-          description: Information associated with the example id
+        id:
+          description: Unique identifier of the hearing
           type: string
-          example: "Some text"
+          format: uuid
+          example: "f1d2c3b4-a5e6-4f7a-8b9c-0d1e2f3a4b5c"
+        pcr:
+          $ref: "#/components/schemas/Pcr"
+        offences:
+          description: Result for each offence at the hearing
+          type: array
+          items:
+            $ref: "#/components/schemas/OffenceResult"
+        courtApplicationResults:
+          description: Result for each court application at the hearing
+          type: array
+          items:
+            $ref: "#/components/schemas/CourtApplicationResult"
+
+    OffenceResult:
+      description: The result recorded against an offence
+      type: object
+      properties:
+        id:
+          description: Unique identifier of the offence
+          type: string
+          format: uuid
+          example: "c4a1b2d3-e5f6-4789-9abc-0d1e2f3a4b5c"
+        code:
+          description: Offence code
+          type: string
+          example: "TH68001"
+        result:
+          $ref: "#/components/schemas/Result"
+
+    CourtApplicationResult:
+      description: The result recorded against a court application
+      type: object
+      properties:
+        id:
+          description: Unique identifier of the court application
+          type: string
+          format: uuid
+          example: "a9b8c7d6-e5f4-4321-9876-0a1b2c3d4e5f"
+        reference:
+          description: Court application reference
+          type: string
+          example: "APP-2026-001"
+        result:
+          $ref: "#/components/schemas/Result"
+
+    Pcr:
+      description: Prosecution case reference
+      type: object
+      properties:
+        id:
+          description: Unique identifier of the prosecution case
+          type: string
+          format: uuid
+          example: "9c8b7a6d-5e4f-4321-8765-0a1b2c3d4e5f"
+        reference:
+          description: Prosecution case reference (case URN)
+          type: string
+          example: "20GD1234567"
+
+    Result:
+      description: A judicial result
+      type: object
+      properties:
+        id:
+          description: Unique identifier of the result
+          type: string
+          example: "c4a1b2d3-e5f6-4789-9abc-0d1e2f3a4b5c_result"
+        type:
+          description: Result type
+          type: string
+          example: "Convicted"
+        date:
+          description: Date the result was ordered
+          type: string
+          format: date
+          example: "2026-05-14"
+        sentence:
+          $ref: "#/components/schemas/Sentence"
+
+    Sentence:
+      description: A sentence handed down as part of a result
+      type: object
+      properties:
+        id:
+          description: Unique identifier of the sentence
+          type: string
+          example: "c4a1b2d3-e5f6-4789-9abc-0d1e2f3a4b5c_sentence"
+        type:
+          description: Sentence type
+          type: string
+          example: "Custodial"
+        custodyStatus:
+          description: Custody status code
+          type: string
+          example: "C"
+        financialAmount:
+          description: Financial amount imposed, where applicable
+          type: number
+          format: double
+          example: 250.00
+        periodLengths:
+          description: Duration components of a custodial sentence
+          type: array
+          items:
+            $ref: "#/components/schemas/PeriodLength"
+        pcr:
+          $ref: "#/components/schemas/Pcr"
+
+    PeriodLength:
+      description: A sentence duration broken down into components
+      type: object
+      properties:
+        years:
+          type: integer
+          example: 1
+        months:
+          type: integer
+          example: 6
+        weeks:
+          type: integer
+          example: 2
+        days:
+          type: integer
+          example: 10
 
     ErrorResponse:
+      description: Standard error response
       type: object
       properties:
         error:
           type: string
           description: Machine-readable error code
+          example: "NOT_FOUND"
         message:
           type: string
           description: Human-readable error message
+          example: "No hearing found for the supplied hearing ID"
         details:
           type: object
           additionalProperties: true
@@ -89,6 +337,8 @@ components:
         timestamp:
           type: string
           format: date-time
+          example: "2026-06-22T11:33:22.794Z"
         traceId:
           type: string
           description: Unique identifier for error tracing
+          example: "b2f1c3d4e5f60718"

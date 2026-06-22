@@ -1,53 +1,60 @@
-# API HMCTS Marketplace Template Repository
+# api-cp-crime-hearing-results
 
-This is a template repository for HMCTS Marketplace APIs. It defines naming conventions, structure, and validation tooling for OpenAPI specifications.
+OpenAPI specification for the **CP Crime Hearing Results API** — a read API that exposes the
+results recorded at a hearing for criminal cases on the Common Platform (CP).
 
-The repository template and its associated build workflows are designed to support a single API specification per repository.
+> 🔗 API definitions follow the [HMCTS RESTful API Standards](https://hmcts.github.io/restful-api-standards/).
 
-> 🔗 API definitions should follow the [HMCTS RESTful API Standards](https://hmcts.github.io/restful-api-standards/).
+## Purpose
 
-## Naming Convention
+Given a hearing ID, the API returns the results recorded at that hearing — the prosecution case
+reference, the result for each offence, and the result for each court application, including any
+sentence handed down.
 
-> NOTE: Avoid using terms like `common, core, base, utils, helpers, misc, or shared`.
-> These names often allow for ambiguous ownership and quickly become black holes where cohesion goes to die.
+The OpenAPI spec lives at [`src/main/resources/openapi/openapi-spec.yml`](./src/main/resources/openapi/openapi-spec.yml)
+and is the single source of truth for this repository.
 
-Repository names follow a pattern from generic to specific:
+## Endpoints
 
+The endpoint is read-only (`GET`) and is protected by OAuth 2.0 — callers must present a valid
+JWT bearer access token.
+
+| Method & path | Description |
+| --- | --- |
+| `GET /hearing-results/hearings/{hearingId}` | Returns the results recorded at a hearing: the prosecution case reference, a result per offence, and a result per court application, including any sentence. Returns empty lists when the hearing has no recorded results. |
+
+A not-found response is returned when the referenced hearing does not exist.
+
+### Authentication
+
+The endpoint requires an OAuth 2.0 JWT bearer access token (client credentials flow) with the
+`hearing-results.read` scope. Requests without a valid token receive `401`; tokens lacking the
+required scope receive `403`.
+
+### Error responses
+
+All error responses use a standard `ErrorResponse` shape (`error`, `message`, `details`,
+`timestamp`, `traceId`). The operation documents `400`, `401`, `403`, `404`, and `500` responses.
+
+## Building
+
+The build validates the OpenAPI spec and generates Java model/client artifacts published as a jar
+(`group = uk.gov.hmcts.cp`).
+
+```bash
+./gradlew build
 ```
-api-{sources-system}-[case-type]-{business-domain}-{name-of-entity}
+
+## Linting
+
+The spec is linted with [Spectral](https://stoplight.io/open-source/spectral) using the
+configuration in [`.spectral.yml`](./.spectral.yml):
+
+```bash
+npx @stoplight/spectral-cli lint src/main/resources/openapi/openapi-spec.yml
 ```
-* `sources-system`: 
-Some examples are:
-  * `cp` - Common Platform
-  * `dcs` - Crown Court Digital Case System
-  * `sscs` - Social Security and Child Support
-    
-* `case-type`: optional parameter could be:
 
-  * civil 
-  * crime 
-  * family 
-  * tribunal
-
-HMCTS manages all Civil, Criminal, Family (separate from civil), and Tribunal cases.
-
-* `business-domain`, or also could be known as `product-domain`
-
-The Common Platform (CP) will be:
-  * `caseingestion`
-  * `casematerial`
-  * `caseadmin`
-  * `casehearing`
-  * `schedulingandlisting`
-
-### Reference Data Repositories
-
-Reference data APIs use the following naming format:
-
-```
-api-cp-refdata-{product-domain}-{name-of-entity}
-```
-It could be argued that `product-domain` should be optional for reference data, placing it under global ownership. But global ownership often means no ownership — and no accountability. Therefore, `product-domain` is **required**.
+Linting also runs in CI via [`.github/workflows/lint-openapi.yml`](./.github/workflows/lint-openapi.yml).
 
 ## Supporting Documents
 
@@ -59,30 +66,11 @@ The [`docs`](./docs) directory includes supporting information for the repositor
 - [`GITHUB-ACTIONS.md`](./docs/GITHUB-ACTIONS.md) – Overview of GitHub Actions workflows, including secrets and variables.
 - [`OPENAPI-FILE-CONVENTIONS.md`](./docs/OPENAPI-FILE-CONVENTIONS.md) – OpenAPI file and content conventions.
 - [`OPENAPI-SPEC-VERSIONING.md`](./docs/OPENAPI-SPEC-VERSIONING.md) – Rules for evolving OpenAPI specs.
-  
-> **Note** the build requires secrets and variables to be available in project settings; see [GitHub Actions: Required Secrets and Variables](./docs/GITHUB-ACTIONS.md)
 
-## Post-Template Manual Steps
+> **Note** the build requires secrets and variables to be available in project settings; see
+> [GitHub Actions: Required Secrets and Variables](./docs/GITHUB-ACTIONS.md).
 
-### Setup
-
-* Go to settings of the repository -> General -> check "Automatically delete head branches"
-* Import the ruleset `.github/rulesets/main-branch-protection.json`  
-  To import the ruleset, follow GitHub’s instructions here:  
-  👉 [Importing a ruleset](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/managing-rulesets-for-a-repository#importing-a-ruleset)
-  
-Once the ruleset has been successfully imported via GitHub Settings, the new repository no longer requires `.github/rulesets/main-branch-protection.json` so it **should be deleted**:
-
-### Clean Up
-
-After using this template to create your repository, the following files are no longer needed and **should be deleted**:
-
-- `./docs/*`
-- `./src/main/resources/openapi/deleteme`
-
-Update the `./README.md` to reflect the context of the new created repository
-
-### Contribute to This Repository
+## Contributing
 
 Contributions are welcome! Please see the [CONTRIBUTING.md](.github/CONTRIBUTING.md) file for guidelines.
 
